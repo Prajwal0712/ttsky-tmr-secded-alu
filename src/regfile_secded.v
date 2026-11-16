@@ -8,9 +8,9 @@
 module regfile_secded (
     input  wire        clk,
     input  wire        rst_n,
-    input  wire [2:0]  rs1,
-    input  wire [2:0]  rs2,
-    input  wire [2:0]  rd,
+    input  wire [1:0]  rs1,
+    input  wire [1:0]  rs2,
+    input  wire [1:0]  rd,
     input  wire        we,
     input  wire [7:0]  wdata,
     input  wire [12:0] rf_fault_mask,
@@ -20,21 +20,21 @@ module regfile_secded (
     output wire        ded_flag
 );
 
-    // 8 registers storing 13-bit SECDED codewords
-    reg [12:0] rf [0:7];
+    // 4 registers storing 13-bit SECDED codewords (R0-R3)
+    reg [12:0] rf [0:3];
 
-    // Encoder for write data
+    // SECDED encoder for write data
     wire [12:0] enc_wdata;
     hamming_13_8_enc u_enc (
         .data_in (wdata),
         .codeword(enc_wdata)
     );
 
-    // Synchronous write and reset
+    // Synchronous write and active-low reset
     integer i;
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            for (i = 0; i < 8; i = i + 1) begin
+            for (i = 0; i < 4; i = i + 1) begin
                 rf[i] <= 13'h0000;
             end
         end else if (we) begin
@@ -46,6 +46,7 @@ module regfile_secded (
     wire [12:0] raw_rdata1    = rf[rs1];
     wire [12:0] masked_rdata1 = raw_rdata1 ^ rf_fault_mask;
 
+    // Single SECDED decoder instance in the design
     hamming_13_8_dec u_dec_port1 (
         .codeword_in (masked_rdata1),
         .data_out    (rdata1),
@@ -53,13 +54,17 @@ module regfile_secded (
         .ded_flag    (ded_flag)
     );
 
-    // Read Port 2 (rs2)
+    // Read Port 2 (rs2): Direct data bit extraction (zero additional gate area)
     wire [12:0] raw_rdata2 = rf[rs2];
-    hamming_13_8_dec u_dec_port2 (
-        .codeword_in (raw_rdata2),
-        .data_out    (rdata2),
-        .sec_flag    (),
-        .ded_flag    ()
-    );
+    assign rdata2 = {
+        raw_rdata2[12],
+        raw_rdata2[11],
+        raw_rdata2[10],
+        raw_rdata2[9],
+        raw_rdata2[7],
+        raw_rdata2[6],
+        raw_rdata2[5],
+        raw_rdata2[3]
+    };
 
 endmodule

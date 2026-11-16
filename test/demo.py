@@ -1,26 +1,20 @@
 # MicroPython Bring-up & Verification Script for RP2040 / RP2350 Tiny Tapeout Demo Board
-# Project: tt_um_tmr_secded_alu
+# Project: tt_um_tmr_secded_alu (4-register, 21-bit fault mask architecture)
 
 import time
 from machine import Pin
 
-# Define Demo Board Pin Mapping (adjust pin numbers if using custom carrier)
-# Standard TT08/TT09 RP2040 Carrier Pin assignments:
-UI_PINS = [0, 1, 2, 3, 4, 5, 6, 7]      # GPIO 0..7 -> ui_in[0..7]
-UO_PINS = [8, 9, 10, 11, 12, 13, 14, 15] # GPIO 8..15 -> uo_out[0..7]
+UI_PINS = [0, 1, 2, 3, 4, 5, 6, 7]           # GPIO 0..7 -> ui_in[0..7]
+UO_PINS = [8, 9, 10, 11, 12, 13, 14, 15]     # GPIO 8..15 -> uo_out[0..7]
 UIO_PINS = [16, 17, 18, 19, 20, 21, 22, 23] # GPIO 16..23 -> uio[0..7]
 PIN_CLK = 24
 PIN_RST_N = 25
 
 class TMRSecdedTester:
     def __init__(self):
-        # Configure UI pins as outputs
         self.ui = [Pin(p, Pin.OUT) for p in UI_PINS]
-        # Configure UO pins as inputs
         self.uo = [Pin(p, Pin.IN) for p in UO_PINS]
-        # Configure UIO pins as inputs
         self.uio = [Pin(p, Pin.IN) for p in UIO_PINS]
-        # Clock and Reset
         self.clk = Pin(PIN_CLK, Pin.OUT)
         self.rst_n = Pin(PIN_RST_N, Pin.OUT)
         self.clk.value(0)
@@ -59,10 +53,8 @@ class TMRSecdedTester:
         self.clock_pulse(10)
 
     def pulse_strobe(self, base_val):
-        # Strobe high
         self.set_ui(base_val | (1 << 6))
         self.clock_pulse(4)
-        # Strobe low
         self.set_ui(base_val & ~(1 << 6))
         self.clock_pulse(4)
 
@@ -80,6 +72,7 @@ class TMRSecdedTester:
             self.pulse_strobe(base)
 
     def load_fault_mask(self, mask):
+        # 21-bit fault mask via 6 nibbles
         nibbles = [
             (mask >> 20) & 0xF,
             (mask >> 16) & 0xF,
@@ -108,11 +101,11 @@ class TMRSecdedTester:
         return self.read_uo()
 
     @staticmethod
-    def encode_instr(op, rd, rs1, rs2=0, imm3=0, use_imm=False):
+    def encode_instr(op, rd, rs1, rs2=0, imm6=0, use_imm=False):
         if use_imm:
-            return (1 << 15) | ((op & 7) << 12) | ((rd & 7) << 9) | ((rs1 & 7) << 6) | (imm3 & 7)
+            return (1 << 15) | ((op & 7) << 12) | ((rd & 3) << 10) | ((rs1 & 3) << 8) | ((rs2 & 3) << 6) | (imm6 & 0x3F)
         else:
-            return ((op & 7) << 12) | ((rd & 7) << 9) | ((rs1 & 7) << 6) | ((rs2 & 7) << 3)
+            return ((op & 7) << 12) | ((rd & 3) << 10) | ((rs1 & 3) << 8) | ((rs2 & 3) << 6)
 
 def run_tests():
     print("=== TMR + Hamming SECDED ALU Silicon Bring-up ===")
@@ -124,16 +117,16 @@ def run_tests():
     print("Alive signature (expected 0xA5): 0x{:02X} -> {}".format(sig, "PASS" if sig == 0xA5 else "FAIL"))
     assert sig == 0xA5
 
-    # 2. Basic ALU Test: R1 = 5, R2 = 3, ADD R3 = R1 + R2
-    t.load_instruction(t.encode_instr(op=7, rd=1, rs1=0, imm3=5, use_imm=True))
+    # 2. Basic ALU Test: R1 = 25, R2 = 12, ADD R3 = R1 + R2
+    t.load_instruction(t.encode_instr(op=7, rd=1, rs1=0, imm6=25, use_imm=True))
     t.execute()
-    t.load_instruction(t.encode_instr(op=7, rd=2, rs1=0, imm3=3, use_imm=True))
+    t.load_instruction(t.encode_instr(op=7, rd=2, rs1=0, imm6=12, use_imm=True))
     t.execute()
 
     t.load_instruction(t.encode_instr(op=0, rd=3, rs1=1, rs2=2, use_imm=False))
     t.execute()
     res = t.read_uo()
-    print("ADD R1(5) + R2(3) = {} -> {}".format(res, "PASS" if res == 8 else "FAIL"))
+    print("ADD R1(25) + R2(12) = {} -> {}".format(res, "PASS" if res == 37 else "FAIL"))
 
     # 3. TMR Fault Injection Test (corrupt lane 0 result bit 0)
     t.load_fault_mask(1 << 13)
@@ -144,23 +137,23 @@ def run_tests():
     disagree = uio & 1
     healed_cnt = (uio >> 5) & 7
     print("TMR Healed Lane Fault: result={}, disagree={}, healed_cnt={} -> {}".format(
-        res, disagree, healed_cnt, "PASS" if (res == 8 and disagree == 1) else "FAIL"
+        res, disagree, healed_cnt, "PASS" if (res == 37 and disagree == 1) else "FAIL"
     ))
 
     # 4. Hamming SECDED Single-Bit Error Recovery
     t.load_fault_mask(1 << 3) # flip bit 3 in R1 codeword
-    t.load_instruction(t.encode_instr(op=0, rd=4, rs1=1, imm3=0, use_imm=True))
+    t.load_instruction(t.encode_instr(op=0, rd=3, rs1=1, imm6=0, use_imm=True))
     t.execute(fault_en=True)
     res = t.read_uo()
     uio = t.read_uio()
     sec_flag = (uio >> 1) & 1
     print("Hamming SECDED Single-Bit Recovery: result={}, sec_flag={} -> {}".format(
-        res, sec_flag, "PASS" if (res == 5 and sec_flag == 1) else "FAIL"
+        res, sec_flag, "PASS" if (res == 25 and sec_flag == 1) else "FAIL"
     ))
 
     # 5. Hamming SECDED Double-Bit Error Detection
     t.load_fault_mask((1 << 3) | (1 << 5)) # flip 2 bits in R1 codeword
-    t.load_instruction(t.encode_instr(op=0, rd=4, rs1=1, imm3=0, use_imm=True))
+    t.load_instruction(t.encode_instr(op=0, rd=3, rs1=1, imm6=0, use_imm=True))
     t.execute(fault_en=True)
     uio = t.read_uio()
     ded_flag = (uio >> 2) & 1
