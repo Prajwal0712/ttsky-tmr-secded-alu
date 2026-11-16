@@ -37,7 +37,9 @@ module hamming_13_8_dec (
     assign ded_flag = (s != 4'b0000) && (!p);
 
     // Correct codeword by flipping bit position S when single error occurs in 1..12
+    /* verilator lint_off UNUSEDSIGNAL */
     wire [12:0] corr_codeword;
+    /* verilator lint_on UNUSEDSIGNAL */
     assign corr_codeword[0]  = codeword_in[0] ^ (p && (s == 4'd0));
     assign corr_codeword[1]  = codeword_in[1] ^ (p && (s == 4'd1));
     assign corr_codeword[2]  = codeword_in[2] ^ (p && (s == 4'd2));

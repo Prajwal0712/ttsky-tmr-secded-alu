@@ -55,7 +55,9 @@ module regfile_secded (
     );
 
     // Read Port 2 (rs2): Direct data bit extraction (zero additional gate area)
+    /* verilator lint_off UNUSEDSIGNAL */
     wire [12:0] raw_rdata2 = rf[rs2];
+    /* verilator lint_on UNUSEDSIGNAL */
     assign rdata2 = {
         raw_rdata2[12],
         raw_rdata2[11],
