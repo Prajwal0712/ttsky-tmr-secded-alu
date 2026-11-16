@@ -1,56 +1,58 @@
 # Tiny Tapeout project information
 project:
-  title:        ""      # Project title
-  author:       ""      # Your name
-  discord:      ""      # Your discord username, for communication and automatically assigning you a Tapeout role (optional)
-  description:  ""      # One line description of what your project does
-  language:     "Verilog" # other examples include SystemVerilog, Amaranth, VHDL, etc
-  clock_hz:     0       # Clock frequency in Hz (or 0 if not applicable)
+  title:        "Fault-Tolerant TMR + SECDED ALU"
+  author:       "Prajwal B K"
+  discord:      ""
+  description:  "Fault-Tolerant 8-bit ALU & Register File with Triple Modular Redundancy (TMR) and Hamming (13,8) SECDED"
+  language:     "Verilog"
+  clock_hz:     10000000
 
   # How many tiles your design occupies? A single tile is about 167x108 uM.
-  tiles: "1x1"          # Valid values: 1x1, 1x2, 2x2, 3x2, 4x2, 6x2 or 8x2
+  tiles: "1x1"
 
-  # Your top module name must start with "tt_um_". Make it unique by including your github username:
-  top_module:  "tt_um_example"
+  # Your top module name must start with "tt_um_".
+  top_module:  "tt_um_tmr_secded_alu"
 
   # List your project's source files here.
-  # Source files must be in ./src and you must list each source file separately, one per line.
-  # Don't forget to also update `PROJECT_SOURCES` in test/Makefile.
   source_files:
     - "project.v"
+    - "alu_8bit.v"
+    - "tmr_voter.v"
+    - "hamming_13_8_enc.v"
+    - "hamming_13_8_dec.v"
+    - "regfile_secded.v"
 
-# The pinout of your project. Leave unused pins blank. DO NOT delete or add any pins.
-# This section is for the datasheet/website. Use descriptive names (e.g., RX, TX, MOSI, SCL, SEG_A, etc.).
+# The pinout of your project.
 pinout:
   # Inputs
-  ui[0]: ""
-  ui[1]: ""
-  ui[2]: ""
-  ui[3]: ""
-  ui[4]: ""
-  ui[5]: ""
-  ui[6]: ""
-  ui[7]: ""
+  ui[0]: "nibble_in[0]"
+  ui[1]: "nibble_in[1]"
+  ui[2]: "nibble_in[2]"
+  ui[3]: "nibble_in[3]"
+  ui[4]: "mode[0] (00=LoadInstr, 01=Exec, 10=LoadMask, 11=Debug)"
+  ui[5]: "mode[1]"
+  ui[6]: "step_strobe (rising edge trigger)"
+  ui[7]: "fault_inject_en (1=enable masks, 0=disable)"
 
   # Outputs
-  uo[0]: ""
-  uo[1]: ""
-  uo[2]: ""
-  uo[3]: ""
-  uo[4]: ""
-  uo[5]: ""
-  uo[6]: ""
-  uo[7]: ""
+  uo[0]: "uo_out[0] (result[0] or debug[0])"
+  uo[1]: "uo_out[1] (result[1] or debug[1])"
+  uo[2]: "uo_out[2] (result[2] or debug[2])"
+  uo[3]: "uo_out[3] (result[3] or debug[3])"
+  uo[4]: "uo_out[4] (result[4] or debug[4])"
+  uo[5]: "uo_out[5] (result[5] or debug[5])"
+  uo[6]: "uo_out[6] (result[6] or debug[6])"
+  uo[7]: "uo_out[7] (result[7] or debug[7])"
 
-  # Bidirectional pins
-  uio[0]: ""
-  uio[1]: ""
-  uio[2]: ""
-  uio[3]: ""
-  uio[4]: ""
-  uio[5]: ""
-  uio[6]: ""
-  uio[7]: ""
+  # Bidirectional pins (all configured as dedicated status outputs)
+  uio[0]: "tmr_disagreement (ALU lane mismatch healed by TMR)"
+  uio[1]: "hamming_sec_flag (1-bit reg error corrected by SECDED)"
+  uio[2]: "hamming_ded_flag (2-bit uncorrectable reg error detected)"
+  uio[3]: "alu_zero"
+  uio[4]: "alu_carry"
+  uio[5]: "healed_err_cnt[0]"
+  uio[6]: "healed_err_cnt[1]"
+  uio[7]: "healed_err_cnt[2]"
 
 # Do not change!
 yaml_version: 6
